@@ -1,5 +1,8 @@
 # JWTBundle
+![Test](https://github.com/toyokumo/JWTBundle/workflows/Test/badge.svg?branch=main)
+
 Generating and Interpreting JWT token.
+
 
 ## Usage
 
