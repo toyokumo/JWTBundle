@@ -1,0 +1,21 @@
+{
+  "name": "toyokumo/jwt-bundle",
+  "description": "Symfony support for generating and interpreting JWT token.",
+  "keywords": ["symfony", "bundle"],
+  "homepage": "https://github.com/toyokumo/JWTBundle",
+  "license": "MIT",
+  "require": {
+    "php": "^7.4",
+    "symfony/config": "~3.0|~4.0",
+    "symfony/dependency-injection": "~3.0|~4.0",
+    "sensio/framework-extra-bundle": "~3.0|~4.0|~5.0",
+    "web-token/jwt-framework": "^2.2"
+  }
+  ,
+  "require-dev": {
+    "roave/security-advisories": "dev-master"
+  },
+  "autoload": {
+    "psr-4": { "Toyokumo\\JWTBundle\\": "src/" }
+  }
+}
