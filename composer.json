@@ -5,7 +5,7 @@
   "homepage": "https://github.com/toyokumo/JWTBundle",
   "license": "MIT",
   "require": {
-    "php": "^7.4",
+    "php": "^7.4|^8.0",
     "symfony/config": "~3.0|~4.0",
     "symfony/dependency-injection": "~3.0|~4.0",
     "sensio/framework-extra-bundle": "~3.0|~4.0|~5.0",
@@ -13,7 +13,11 @@
   }
   ,
   "require-dev": {
-    "roave/security-advisories": "dev-master"
+    "roave/security-advisories": "dev-master",
+    "phpunit/phpunit": "^8.5"
+  },
+  "scripts": {
+    "test": "vendor/bin/phpunit tests"
   },
   "autoload": {
     "psr-4": { "Toyokumo\\JWTBundle\\": "src/" }

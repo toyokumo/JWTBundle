@@ -1,0 +1,20 @@
+name: Test
+
+on: push
+
+jobs:
+  phpunit:
+    name: PHPUnit
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: CheckOut
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: composer install -n --prefer-dist
+
+      - name: Run test
+        run: composer run-script test
+
