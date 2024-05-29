@@ -2,6 +2,7 @@
 
 namespace Toyokumo\JWTBundle;
 
+use Jose\Component\Checker\InvalidClaimException;
 use PHPUnit\Framework\TestCase;
 use Toyokumo\JWTBundle\Exception\InvalidJWTException;
 use Toyokumo\JWTBundle\Exception\NotVerifiedJWTException;
@@ -49,7 +50,7 @@ class JWTServiceTest extends TestCase
     {
         $token = $this->jwt->generateJWSToken(['hoge' => 'fuga'], 'test_key', -1); // exp = -1 means expire right now
 
-        $this->expectException(InvalidJWTException::class);
+        $this->expectException(InvalidClaimException::class);
         $this->jwt->extractValueFromToken($token, 'hoge');
     }
 

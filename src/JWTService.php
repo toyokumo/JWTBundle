@@ -4,6 +4,19 @@ namespace Toyokumo\JWTBundle;
 
 use Exception;
 use InvalidArgumentException;
+use Jose\Component\Checker\AlgorithmChecker;
+use Jose\Component\Checker\ClaimCheckerManager;
+use Jose\Component\Checker\ExpirationTimeChecker;
+use Jose\Component\Checker\HeaderCheckerManager;
+use Jose\Component\Checker\IssuedAtChecker;
+use Jose\Component\Checker\NotBeforeChecker;
+use Jose\Component\Core\AlgorithmManager;
+use Jose\Component\Core\Util\JsonConverter;
+use Jose\Component\Signature\Algorithm\HS256;
+use Jose\Component\Signature\JWSBuilder;
+use Jose\Component\Signature\JWSTokenSupport;
+use Jose\Component\Signature\JWSVerifier;
+use Jose\Component\Signature\Serializer\JWSSerializerManager;
 use Toyokumo\JWTBundle\Exception\InvalidJWTException;
 use Toyokumo\JWTBundle\Exception\NotVerifiedJWTException;
 use Jose\Component\Checker\InvalidClaimException;
@@ -11,8 +24,6 @@ use Jose\Component\Checker\InvalidHeaderException;
 use Jose\Component\Core\JWKSet;
 use Jose\Component\KeyManagement\JWKFactory;
 use Jose\Component\Signature\Serializer\CompactSerializer;
-use Jose\Easy\Build;
-use Jose\Easy\Load;
 
 /**
  * Class JWTService
@@ -21,6 +32,18 @@ use Jose\Easy\Load;
 class JWTService
 {
     private JWKSet $jwkSet;
+
+    private JWSBuilder $jwsBuilder;
+
+    private CompactSerializer $compactSerializer;
+
+    private JWSVerifier $jwsVerifier;
+
+    private JWSSerializerManager $serializerManager;
+
+    private HeaderCheckerManager $headerCheckerManager;
+
+    private ClaimCheckerManager $claimCheckerManager;
 
     /**
      * JWTService constructor.
@@ -58,6 +81,33 @@ class JWTService
             }
         }
         $this->jwkSet = new JWKSet($jwks);
+        $this->jwsBuilder = new JWSBuilder(new AlgorithmManager([
+            new HS256()
+        ]));
+        $this->compactSerializer = new CompactSerializer();
+        $this->jwsVerifier = new JWSVerifier(new AlgorithmManager([
+            new HS256()
+        ]));
+        $this->serializerManager = new JWSSerializerManager([
+            new CompactSerializer()
+        ]);
+        // https://web-token.spomky-labs.com/the-components/header-checker#header-checker-manager
+        $this->headerCheckerManager = new HeaderCheckerManager([
+            new AlgorithmChecker(['HS256']),
+            // We want to verify that the header "alg" (algorithm)
+            // is present and contains "HS256"
+        ],
+            [
+                new JWSTokenSupport(), // Adds JWS token type support
+            ]);
+        // https://web-token.spomky-labs.com/the-components/claim-checker#claim-checker-manager
+        $this->claimCheckerManager = new ClaimCheckerManager(
+            [
+                new IssuedAtChecker(),
+                new NotBeforeChecker(),
+                new ExpirationTimeChecker(),
+            ]
+        );
     }
 
     /**
@@ -74,16 +124,19 @@ class JWTService
         $now = time();
 
         $jwk = $this->jwkSet->get($kid);
-        $jws = Build::jws()
-            ->alg($jwk->get('alg'))
-            ->header('kid', $kid)
-            ->exp($now + $exp)
-            ->iat($now)
-            ->nbf($now);
-        foreach ($claims as $key => $value) {
-            $jws->claim($key, $value);
-        }
-        return $jws->sign($jwk);
+
+        $claims['iat'] = $now;
+        $claims['nbf'] = $now;
+        $claims['exp'] = $now + $exp;
+        $payload = JsonConverter::encode($claims);
+
+        $jws = $this->jwsBuilder
+            ->create()
+            ->withPayload($payload)
+            ->addSignature($jwk, ['alg' => $jwk->get('alg'), 'kid' => $kid] )
+            ->build();
+
+        return $this->compactSerializer->serialize($jws);
     }
 
     /**
@@ -97,39 +150,29 @@ class JWTService
     public function extractValueFromToken(string $token, string $claimKey)
     {
         try {
-            // Get kid for identifying jwk
-            $signatures = (new CompactSerializer())
-                ->unserialize($token)
-                ->getSignatures();
+            $jws = $this->serializerManager->unserialize($token);
+            // header validation
+            $this->headerCheckerManager->check($jws, 0, ['alg', 'kid']);
+            // payload validation
+            $claims = JsonConverter::decode($jws->getPayload());
+            $this->claimCheckerManager->check($claims);
+            // signature validation
+            $signatures = $jws->getSignatures();
             $signature = $signatures[0];
-            if (!$signature->hasProtectedHeaderParameter('kid')) {
-                throw new NotVerifiedJWTException('Token is not verified.');
-            }
             $kid = $signature->getProtectedHeaderParameter('kid');
-            if (!$this->jwkSet->has($kid)) {
-                throw new NotVerifiedJWTException('Token is not verified.');
-            }
             $jwk = $this->jwkSet->get($kid);
-
-            $jwt = Load::jws($token)
-                ->alg($jwk->get('alg'))
-                ->exp()
-                ->nbf()
-                ->key($jwk)
-                ->run();
-        } catch (InvalidClaimException $e) {
-            // token expiration etc..
-            throw new InvalidJWTException('Token is invalid.');
-        } catch (InvalidHeaderException $e) {
-            // alg=none tampering etc..
-            throw new NotVerifiedJWTException('Token is not verified.');
-        } catch (InvalidArgumentException $e) {
-            if ($e->getMessage() === 'Unsupported input') {
-                // failed to decode token
+            $isVerified = $this->jwsVerifier->verifyWithKey($jws, $jwk, 0);
+            if (!$isVerified) {
                 throw new NotVerifiedJWTException('Token is not verified.');
             }
-            if ($e->getMessage() === 'Undefined index') {
-                // there is no JWK corresponding to kid
+        } catch (InvalidArgumentException $e) {
+            // 表記揺れがあるので str_contains で対応
+            if (str_contains($e->getMessage(), 'Unsupported input')) {
+                throw new NotVerifiedJWTException('Token is not verified.');
+            }
+
+            // 表記揺れがあるので str_contains で対応
+            if (str_contains($e->getMessage(), 'Undefined index')) {
                 throw new NotVerifiedJWTException('Token is not verified.');
             }
             throw $e;
@@ -140,6 +183,6 @@ class JWTService
             throw $e;
         }
 
-        return $jwt->claims->get($claimKey);
+        return $claims[$claimKey];
     }
 }
