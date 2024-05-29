@@ -4,6 +4,10 @@ namespace Toyokumo\JWTBundle;
 
 use Exception;
 use InvalidArgumentException;
+use Jose\Component\Core\AlgorithmManager;
+use Jose\Component\Core\Util\JsonConverter;
+use Jose\Component\Signature\Algorithm\HS256;
+use Jose\Component\Signature\JWSBuilder;
 use Toyokumo\JWTBundle\Exception\InvalidJWTException;
 use Toyokumo\JWTBundle\Exception\NotVerifiedJWTException;
 use Jose\Component\Checker\InvalidClaimException;
@@ -11,7 +15,6 @@ use Jose\Component\Checker\InvalidHeaderException;
 use Jose\Component\Core\JWKSet;
 use Jose\Component\KeyManagement\JWKFactory;
 use Jose\Component\Signature\Serializer\CompactSerializer;
-use Jose\Easy\Build;
 use Jose\Easy\Load;
 
 /**
@@ -21,6 +24,10 @@ use Jose\Easy\Load;
 class JWTService
 {
     private JWKSet $jwkSet;
+
+    private JWSBuilder $jwsBuilder;
+
+    private CompactSerializer $compactSerializer;
 
     /**
      * JWTService constructor.
@@ -58,6 +65,10 @@ class JWTService
             }
         }
         $this->jwkSet = new JWKSet($jwks);
+        $this->jwsBuilder = new JWSBuilder(new AlgorithmManager([
+            new HS256()
+        ]));
+        $this->compactSerializer = new CompactSerializer();
     }
 
     /**
@@ -74,16 +85,19 @@ class JWTService
         $now = time();
 
         $jwk = $this->jwkSet->get($kid);
-        $jws = Build::jws()
-            ->alg($jwk->get('alg'))
-            ->header('kid', $kid)
-            ->exp($now + $exp)
-            ->iat($now)
-            ->nbf($now);
-        foreach ($claims as $key => $value) {
-            $jws->claim($key, $value);
-        }
-        return $jws->sign($jwk);
+
+        $claims['iat'] = $now;
+        $claims['nbf'] = $now;
+        $claims['exp'] = $now + $exp;
+        $payload = JsonConverter::encode($claims);
+
+        $jws = $this->jwsBuilder
+            ->create()
+            ->withPayload($payload)
+            ->addSignature($jwk, ['alg' => $jwk->get('alg'), 'kid' => $kid] )
+            ->build();
+
+        return $this->compactSerializer->serialize($jws);
     }
 
     /**
