@@ -5,20 +5,21 @@
   "homepage": "https://github.com/toyokumo/JWTBundle",
   "license": "MIT",
   "require": {
-    "php": "^7.4|^8.0",
-    "symfony/config": "^4.3|~5.0|~6.0",
-    "symfony/dependency-injection": "^4.4|~5.0|~6.0",
+    "php": "^8.0",
+    "symfony/config": "^6.0|^7.0",
+    "symfony/dependency-injection": "^6.0|^7.0",
     "web-token/jwt-framework": "^3.4"
-  }
-  ,
+  },
   "require-dev": {
     "roave/security-advisories": "dev-master",
-    "phpunit/phpunit": "^8.5"
+    "phpunit/phpunit": "^10.0"
   },
   "scripts": {
     "test": "vendor/bin/phpunit tests"
   },
   "autoload": {
-    "psr-4": { "Toyokumo\\JWTBundle\\": "src/" }
+    "psr-4": {
+      "Toyokumo\\JWTBundle\\": "src/"
+    }
   }
 }
