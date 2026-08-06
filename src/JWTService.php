@@ -24,6 +24,8 @@ use Jose\Component\Checker\InvalidHeaderException;
 use Jose\Component\Core\JWKSet;
 use Jose\Component\KeyManagement\JWKFactory;
 use Jose\Component\Signature\Serializer\CompactSerializer;
+use Psr\Clock\ClockInterface;
+use Symfony\Component\Clock\NativeClock;
 
 /**
  * Class JWTService
@@ -49,9 +51,11 @@ class JWTService
      * JWTService constructor.
      * @param string $keyDirPath
      * @param array $jwkInfos
+     * @param ClockInterface|null $clock
      */
-    public function __construct(string $keyDirPath, array $jwkInfos)
+    public function __construct(string $keyDirPath, array $jwkInfos, ?ClockInterface $clock = null)
     {
+        $clock ??= new NativeClock();
         if ('/' !== substr($keyDirPath, -1)) {
             $keyDirPath .= '/';
         }
@@ -103,9 +107,9 @@ class JWTService
         // https://web-token.spomky-labs.com/the-components/claim-checker#claim-checker-manager
         $this->claimCheckerManager = new ClaimCheckerManager(
             [
-                new IssuedAtChecker(),
-                new NotBeforeChecker(),
-                new ExpirationTimeChecker(),
+                new IssuedAtChecker($clock),
+                new NotBeforeChecker($clock),
+                new ExpirationTimeChecker($clock),
             ]
         );
     }
